@@ -7,7 +7,7 @@ define(['require', './normalize'], function(req, normalize) {
     if (config.optimizeCss == 'none') {
       return css;
     }
-    
+
     if (typeof process !== "undefined" && process.versions && !!process.versions.node && require.nodeRequire) {
       try {
         var csso = require.nodeRequire('csso');
@@ -19,12 +19,12 @@ define(['require', './normalize'], function(req, normalize) {
       var csslen = css.length;
       try {
         if (typeof csso.minify === 'function') {
-            var minifyResult = csso.minify(css);
-            if (typeof minifyResult === 'string'){ // for csso < 2.0.0
-              css = minifyResult; 
-            } else if (typeof minifyResult === 'object'){ // for csso >= 2.0.0
-              css = minifyResult.css; 
-            } 
+          var minifyResult = csso.minify(css);
+          if (typeof minifyResult === 'string'){ // for csso < 2.0.0
+            css = minifyResult;
+          } else if (typeof minifyResult === 'object'){ // for csso >= 2.0.0
+            css = minifyResult.css;
+          }
         } else { // justDoIt() was always. minify() appeared in csso 1.4.0.
           css = csso.justDoIt(css);
         }
@@ -75,6 +75,7 @@ define(['require', './normalize'], function(req, normalize) {
   function saveFile(path, data) {
     if (typeof process !== "undefined" && process.versions && !!process.versions.node && require.nodeRequire) {
       var fs = require.nodeRequire('fs');
+      // console.log(`CSS, ${path}: ${data}`)
       fs.writeFileSync(path, data, 'utf8');
     }
     else {
@@ -105,7 +106,7 @@ define(['require', './normalize'], function(req, normalize) {
   // NB add @media query support for media imports
   var importRegEx = /@import\s*(url)?\s*(('([^']*)'|"([^"]*)")|\(('([^']*)'|"([^"]*)"|([^\)]*))\))\s*;?/g;
   var absUrlRegEx = /^([^\:\/]+:\/)?\//;
-  
+
   // Write Css module definition
   var writeCSSDefinition = "define('@writecss', function() {return function writeCss(c) {var d=document,a='appendChild',i='styleSheet',s=d.createElement('style');s.type='text/css';d.getElementsByTagName('head')[0][a](s);s[i]?s[i].cssText=c:s[a](d.createTextNode(c));};});";
 
@@ -123,6 +124,8 @@ define(['require', './normalize'], function(req, normalize) {
   var cssBuffer = {};
 
   cssAPI.load = function(name, req, load, _config) {
+    console.log(`========== ${name}`);
+
     //store config
     config = config || _config;
 
@@ -153,8 +156,12 @@ define(['require', './normalize'], function(req, normalize) {
     }
 
     //add to the buffer
-    cssBuffer[name] = normalize(loadFile(fileUrl), fileSiteUrl, siteRoot);
-
+    const platform = 'android';
+    if((name === 'lib/yigo/css/ios' || name === 'lib/scrollview/backbone.scrollview.iphone.css') && platform === 'android' ){
+      cssBuffer[name] = `/*${name} does not import.*/`;
+    }else{
+      cssBuffer[name] = normalize(loadFile(fileUrl), fileSiteUrl, siteRoot);
+    }
     load();
   }
 
@@ -166,13 +173,13 @@ define(['require', './normalize'], function(req, normalize) {
 
   cssAPI.write = function(pluginName, moduleName, write, parse) {
     var cssModule;
-    
+
     //external URLS don't get added (just like JS requires)
     if (moduleName.match(absUrlRegEx))
       return;
-
+    console.log(layerBuffer.length);
     layerBuffer.push(cssBuffer[moduleName]);
-    
+
     if (!global._requirejsCssData) {
       global._requirejsCssData = {
         usedBy: {css: true},
@@ -186,15 +193,15 @@ define(['require', './normalize'], function(req, normalize) {
       var style = cssBuffer[moduleName];
 
       if (config.writeCSSModule && style) {
- 	    if (writeCSSForLayer) {
-    	  writeCSSForLayer = false;
+        if (writeCSSForLayer) {
+          writeCSSForLayer = false;
           write(writeCSSDefinition);
         }
 
         cssModule = 'define(["@writecss"], function(writeCss){\n writeCss("'+ escape(compress(style)) +'");\n})';
       }
       else {
-		cssModule = 'define(function(){})';
+        cssModule = 'define(function(){})';
       }
 
       write.asModule(pluginName + '!' + moduleName, cssModule);
@@ -207,9 +214,9 @@ define(['require', './normalize'], function(req, normalize) {
 
     if (config.separateCSS) {
       var outPath = data.path.replace(/(\.js)?$/, '.css');
-      console.log('Writing CSS! file: ' + outPath + '\n');
+      // console.log('Writing CSS! file: ' + outPath + '\n');
 
-      var css = layerBuffer.join('');
+      var css = layerBuffer.reverse().join('');
 
       process.nextTick(function() {
         if (global._requirejsCssData) {
@@ -219,7 +226,7 @@ define(['require', './normalize'], function(req, normalize) {
             delete global._requirejsCssData;
           }
         }
-        
+
         saveFile(outPath, compress(css));
       });
 
